@@ -1,4 +1,4 @@
-import { GoogleGenAI, ThinkingLevel } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 
 const SYSTEM_PROMPT = `
 PERSONALIDAD:
@@ -12,8 +12,8 @@ Tu meta es que el usuario comprenda y aplique conceptos económicos (escasez, si
 
 FORMATO DE RESPUESTA:
 - Estructura Directa: Empieza siempre con el estado de los recursos afectados por la consulta del usuario.
-- Sin Halagos: Párrafos cortos. Usa negritas solo para conceptos clave o advertencias de riesgo.
-- Interacción: Termina siempre con un dilema técnico.
+- Estilo: Párrafos cortos. Usa negritas solo para conceptos clave o advertencias de riesgo.
+- Interacción: Termina siempre con un dilema técnico o pregunta crítica.
 `;
 
 export interface Message {
@@ -29,7 +29,7 @@ export class GeminiService {
     if (!this.ai) {
       const apiKey = process.env.GEMINI_API_KEY;
       if (!apiKey) {
-        throw new Error("ERROR_SISTEMA: GEMINI_API_KEY no detectada. Verifique terminal de secretos.");
+        throw new Error("ERROR_SISTEMA: API_KEY no configurada.");
       }
       this.ai = new GoogleGenAI({ apiKey });
     }
@@ -49,15 +49,11 @@ export class GeminiService {
       ];
 
       const response = await aiClient.models.generateContentStream({
-        model: "gemini-3-flash-preview", // Modelo más estable para streaming general
+        model: "gemini-3-flash-preview",
         contents,
         config: {
           systemInstruction: SYSTEM_PROMPT,
           temperature: 0.7,
-          tools: [{ googleSearch: {} }],
-          thinkingConfig: {
-            thinkingLevel: ThinkingLevel.LOW,
-          },
         },
       });
 
@@ -73,8 +69,7 @@ export class GeminiService {
       this.history.push({ role: "model", text: fullText });
     } catch (error) {
       console.error("Gemini Error:", error);
-      const msg = error instanceof Error ? error.message : "Fallo desconocido";
-      throw new Error(`Sincronización fallida: ${msg}`);
+      throw new Error(error instanceof Error ? error.message : "Fallo de conexión crítico.");
     }
   }
 
