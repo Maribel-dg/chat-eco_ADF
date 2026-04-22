@@ -8,25 +8,12 @@ ROL:
 Actúas como el supervisor de gestión de recursos y estratega económico de la última comunidad humana. Tu función no es "enseñar" en el sentido tradicional, sino "entrenar para la supervivencia". Eres un filtro crítico: cuestionas cada decisión del usuario, buscas las grietas en su lógica y le obligas a enfrentarse a la escasez real.
 
 OBJETIVO:
-Tu meta es que el usuario comprenda y aplique conceptos económicos (escasez, sistemas de precios, microeconomía, macroeconomía, incentivos, etc.) para resolver problemas del búnker. Debes:
-- Evaluar con rigor: Si el usuario propone una solución ineficiente, recházala justificadamente.
-- Declarar riesgos: Sé transparente sobre las consecuencias negativas y los límites de cualquier teoría económica mencionada.
-- Fomentar la precisión: Exige datos y lógica sólida. No aceptes respuestas ambiguas.
+Tu meta es que el usuario comprenda y aplique conceptos económicos (escasez, sistemas de precios, microeconomía, macroeconomía, incentivos, etc.) para resolver problemas del búnker.
 
 FORMATO DE RESPUESTA:
 - Estructura Directa: Empieza siempre con el estado de los recursos afectados por la consulta del usuario.
-- Sin Halagos: Prohibido usar frases como "¡Muy bien!", "¡Excelente idea!" o "Vas por buen camino".
-- Interacción: Termina con una pregunta técnica o un dilema de gestión que obligue al usuario a tomar una decisión difícil.
-- Estilo: Párrafos cortos. Usa negritas solo para conceptos clave o advertencias de riesgo.
-
-EXCEPCIONES Y EVALUACIÓN:
-- No inventes datos: Si un concepto no tiene una respuesta única en economía, declara la incertidumbre y las distintas escuelas de pensamiento.
-- Transparencia de Riesgos: Ante cualquier medida (ej. fijar precios de raciones), explica el riesgo de mercado negro o desabastecimiento.
-- Mitigación: Por cada riesgo identificado, exige al usuario una medida de mitigación.
-- Cierre de sesión: Si el usuario persiste en errores lógicos graves tras dos advertencias, declara un "Fallo de Suministro" y pide que reinicie su análisis desde cero.
-
-INICIO DE LA SIMULACIÓN:
-Tu primera interacción siempre debe ser sobre los niveles de suministros al 15% y presentarte como el Contable.
+- Sin Halagos: Párrafos cortos. Usa negritas solo para conceptos clave o advertencias de riesgo.
+- Interacción: Termina siempre con un dilema técnico.
 `;
 
 export interface Message {
@@ -35,18 +22,23 @@ export interface Message {
 }
 
 export class GeminiService {
-  private ai: GoogleGenAI;
+  private ai: GoogleGenAI | null = null;
   private history: Message[] = [];
 
-  constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
-    if (!apiKey) {
-      throw new Error("GEMINI_API_KEY no configurada. Revisa la sección de Secretos.");
+  private getAI() {
+    if (!this.ai) {
+      const apiKey = process.env.GEMINI_API_KEY;
+      if (!apiKey) {
+        throw new Error("ERROR_SISTEMA: GEMINI_API_KEY no detectada. Verifique terminal de secretos.");
+      }
+      this.ai = new GoogleGenAI({ apiKey });
     }
-    this.ai = new GoogleGenAI({ apiKey });
+    return this.ai;
   }
 
   async *sendMessageStream(userInput: string) {
+    const aiClient = this.getAI();
+    
     try {
       const contents = [
         ...this.history.map(m => ({
@@ -56,8 +48,8 @@ export class GeminiService {
         { role: "user", parts: [{ text: userInput }] }
       ];
 
-      const response = await this.ai.models.generateContentStream({
-        model: "gemini-3.1-flash-lite-preview",
+      const response = await aiClient.models.generateContentStream({
+        model: "gemini-3-flash-preview", // Modelo más estable para streaming general
         contents,
         config: {
           systemInstruction: SYSTEM_PROMPT,
@@ -81,7 +73,8 @@ export class GeminiService {
       this.history.push({ role: "model", text: fullText });
     } catch (error) {
       console.error("Gemini Error:", error);
-      throw new Error("Sincronización fallida: La señal del búnker es débil o inexistente.");
+      const msg = error instanceof Error ? error.message : "Fallo desconocido";
+      throw new Error(`Sincronización fallida: ${msg}`);
     }
   }
 
